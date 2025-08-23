@@ -32,7 +32,14 @@ class Executor:
         self.step = 0
         self.epoch = 0
         self.rank = int(os.environ.get('RANK', 0))
-        self.device = torch.device('cuda:{}'.format(self.rank))
+        # self.device = torch.device('cuda:{}'.format(self.rank))
+        # For Apple silicon M series chip, use mps if cuda is not available
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda:{}'.format(self.rank))
+        elif torch.backends.mps.is_available():
+            self.device = torch.device('mps')
+        elif torch.xpu.is_available():
+            self.device = torch.device('xpu')
 
     def train_one_epoc(self, model, optimizer, scheduler, train_data_loader, cv_data_loader, writer, info_dict, scaler, group_join, ref_model=None):
         ''' Train one epoch

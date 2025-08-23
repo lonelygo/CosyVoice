@@ -17,42 +17,62 @@ import requests
 import torch
 import torchaudio
 import numpy as np
+from pathlib import Path
 
 
 def main():
     url = "http://{}:{}/inference_{}".format(args.host, args.port, args.mode)
+    
+    # Default to POST, GET is not suitable for file uploads or large payloads
+    method = "POST"
+    files = None
+    payload = {
+        'tts_text': args.tts_text
+    }
+
     if args.mode == 'sft':
-        payload = {
-            'tts_text': args.tts_text,
-            'spk_id': args.spk_id
-        }
-        response = requests.request("GET", url, data=payload, stream=True)
+        payload['spk_id'] = args.spk_id
     elif args.mode == 'zero_shot':
-        payload = {
-            'tts_text': args.tts_text,
-            'prompt_text': args.prompt_text
-        }
-        files = [('prompt_wav', ('prompt_wav', open(args.prompt_wav, 'rb'), 'application/octet-stream'))]
-        response = requests.request("GET", url, data=payload, files=files, stream=True)
+        payload['prompt_text'] = args.prompt_text
+        files = [('prompt_wav', (Path(args.prompt_wav).name, open(args.prompt_wav, 'rb'), 'audio/wav'))]
     elif args.mode == 'cross_lingual':
-        payload = {
-            'tts_text': args.tts_text,
-        }
-        files = [('prompt_wav', ('prompt_wav', open(args.prompt_wav, 'rb'), 'application/octet-stream'))]
-        response = requests.request("GET", url, data=payload, files=files, stream=True)
-    else:
-        payload = {
-            'tts_text': args.tts_text,
-            'spk_id': args.spk_id,
-            'instruct_text': args.instruct_text
-        }
-        response = requests.request("GET", url, data=payload, stream=True)
+        files = [('prompt_wav', (Path(args.prompt_wav).name, open(args.prompt_wav, 'rb'), 'audio/wav'))]
+    elif args.mode == 'instruct':
+        payload['spk_id'] = args.spk_id
+        payload['instruct_text'] = args.instruct_text
+    
+    print(f"Sending {method} request to {url}...")
+    response = requests.request(method, url, data=payload, files=files, stream=True)
+
+    # --- FIX: Check if the request was successful before processing the response --- 
+    if not response.ok:
+        logging.error(f"Server returned an error: {response.status_code}")
+        # Try to print the error message from the server
+        try:
+            error_info = response.json()
+            logging.error(f"Server error details: {error_info}")
+        except requests.exceptions.JSONDecodeError:
+            logging.error(f"Server response (non-JSON): {response.text[:1000]}")
+        return # Stop processing
+
     tts_audio = b''
     for r in response.iter_content(chunk_size=16000):
         tts_audio += r
-    tts_speech = torch.from_numpy(np.array(np.frombuffer(tts_audio, dtype=np.int16))).unsqueeze(dim=0)
+    
+    # Convert the 16-bit integer bytes to a float tensor and normalize to [-1, 1]
+    tts_speech_int16 = torch.from_numpy(np.frombuffer(tts_audio, dtype=np.int16))
+    # The unsqueeze is to create a (1, num_samples) shape, which is valid for mono
+    tts_speech_float32 = (tts_speech_int16.float() / 32768.0).unsqueeze(dim=0)
+
     logging.info('save response to {}'.format(args.tts_wav))
-    torchaudio.save(args.tts_wav, tts_speech, target_sr)
+    # Use the recommended torchcodec encoder to save the audio
+    try:
+        from torchcodec.encoders import AudioEncoder
+        encoder = AudioEncoder(samples=tts_speech_float32, sample_rate=target_sr)
+        encoder.to_file(args.tts_wav)
+    except (ImportError, ModuleNotFoundError):
+        logging.warning('torchcodec not found, falling back to torchaudio.save. Please consider installing torchcodec for future compatibility.')
+        torchaudio.save(args.tts_wav, tts_speech_float32, target_sr)
     logging.info('get response')
 
 
@@ -88,5 +108,5 @@ if __name__ == "__main__":
                         type=str,
                         default='demo.wav')
     args = parser.parse_args()
-    prompt_sr, target_sr = 16000, 22050
+    prompt_sr, target_sr = 16000, 24000
     main()

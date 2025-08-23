@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from re import A
 import sys
 import argparse
 import logging
@@ -90,12 +91,18 @@ if __name__ == '__main__':
                         type=str,
                         default='iic/CosyVoice-300M',
                         help='local path or modelscope repo id')
+    parser.add_argument('--fp16', 
+                        action='store_true', 
+                        help='Enable fp16inference for Apple Silicon')
+    parser.add_argument('--load_jit', 
+                        action='store_true',
+                        help='LoadJIT-compiled model')
     args = parser.parse_args()
+    model_loader = CosyVoice2 if 'CosyVoice2' in args.model_dir else CosyVoice
     try:
-        cosyvoice = CosyVoice(args.model_dir)
-    except Exception:
-        try:
-            cosyvoice = CosyVoice2(args.model_dir)
-        except Exception:
-            raise TypeError('no valid model_type!')
+        cosyvoice = model_loader(args.model_dir, load_jit=args.load_jit, fp16=args.fp16)
+        print(f"Successfully loaded {model_loader.__name__} with fp16={args.fp16}, load_jit={args.load_jit}")
+    except Exception as e:
+        print(f"Failed to load {model_loader.__name__}: {e}")
+        raise TypeError('no valid model_type!')
     uvicorn.run(app, host="0.0.0.0", port=args.port)
