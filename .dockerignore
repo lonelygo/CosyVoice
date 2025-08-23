@@ -1,0 +1,44 @@
+# .dockerignore
+
+# Git相关
+.git
+.github/
+.gitignore
+.gitmodules
+
+# Python 虚拟环境和缓存
+.venv
+.mypy_cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 本地开发历史和日志
+.history/
+logs/
+*.log
+err.txt
+
+# IDE 和 OS 特定文件
+.vscode/
+.idea/
+.DS_Store
+
+# 文档和非运行时脚本
+README.md
+FAQ.md
+CODE_OF_CONDUCT.md
+LICENSE
+docker_run.sh
+examples/
+pretrained_models/
+
+# Dockerfile本身也不需要被复制到镜像里
+Dockerfile
+Dockerfile.macOS
+docker/
+
+# 临时文件和输出目录 (如果它们在构建时已存在)
+tmp/
+output/

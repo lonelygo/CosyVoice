@@ -59,7 +59,15 @@ def main():
 
     # Init cosyvoice models from configs
     use_cuda = args.gpu >= 0 and torch.cuda.is_available()
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    # device = torch.device('cuda' if use_cuda else 'cpu')
+    # For Apple silicon M series chip, use mps if cuda is not available
+    device = torch.device('cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    elif torch.xpu.is_available():
+        device = torch.device('xpu')
     try:
         with open(args.config, 'r') as f:
             configs = load_hyperpyyaml(f, overrides={'qwen_pretrain_path': args.qwen_pretrain_path})
