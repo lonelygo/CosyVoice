@@ -1,0 +1,39 @@
+# Dockerfile for macOS (Apple Silicon, ARM64)
+# Use an official Python runtime as a parent image that supports ARM64
+FROM python:3.10-slim-bullseye
+
+# Set environment variables to use mirrors for faster downloads
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
+
+# Set the working directory
+WORKDIR /opt/CosyVoice
+
+# Install system dependencies
+# Using aliyun mirrors for apt
+RUN sed -i s@/deb.debian.org/@/mirrors.aliyun.com/@g /etc/apt/sources.list && \
+    apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    git \
+    git-lfs \
+    g++ \
+    unzip \
+    libsndfile1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the entire project from the build context into the container
+COPY . .
+
+# Install Python dependencies from the requirements file
+# The requirements.txt should be pre-edited to be compatible with non-CUDA environments
+RUN pip install --no-cache-dir -r requirements-mac.txt
+
+# Compile the gRPC protobufs
+RUN python3 -m grpc_tools.protoc -I./runtime/python/grpc --python_out=./runtime/python/grpc --grpc_python_out=./runtime/python/grpc ./runtime/python/grpc/cosyvoice.proto
+
+# Add a default command to show the app is ready or to start a service
+# For example, to start the web UI:
+# CMD ["python", "webui.py", "--listen", "0.0.0.0", "--port", "7860"]
+

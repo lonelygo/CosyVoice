@@ -30,18 +30,21 @@ __pycache__/
 
 # macOS dir files
 .DS_Store
-
+logs
+pretrained_models
 exp
 data
 raw_wav
 tensorboard
 **/*build*
-
+sublime-workspaci
 # Clangd files
 .cache
 compile_commands.json
 
 # train/inference files
+err.txt
+tmp/*
 *.wav
 *.m4a
 *.aac

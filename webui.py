@@ -65,6 +65,7 @@ def generate_audio(tts_text, mode_checkbox_group, sft_dropdown, prompt_text, pro
         prompt_wav = prompt_wav_upload
     elif prompt_wav_record is not None:
         prompt_wav = prompt_wav_record
+        print(f"录制的临时音频文件路径: {prompt_wav_record}")
     else:
         prompt_wav = None
     # if instruct mode, please make sure that model is iic/CosyVoice-300M-Instruct and not cross_lingual mode
@@ -183,14 +184,27 @@ if __name__ == '__main__':
                         type=str,
                         default='pretrained_models/CosyVoice2-0.5B',
                         help='local path or modelscope repo id')
+    # 添加针对M芯片优化的启动参数
+    parser.add_argument('--fp16', 
+                        action='store_true', 
+                        help='Enable fp16 inference for Apple Silicon')
+    parser.add_argument('--load_jit', 
+                        action='store_true',
+                        help='Load JIT-compiled model')
     args = parser.parse_args()
+
+    # 动态选择模型加载器
+    model_loader = CosyVoice2 if 'CosyVoice2' in args.model_dir else CosyVoice
+    
     try:
-        cosyvoice = CosyVoice(args.model_dir)
-    except Exception:
-        try:
-            cosyvoice = CosyVoice2(args.model_dir)
-        except Exception:
-            raise TypeError('no valid model_type!')
+        # 将命令行参数传递给模型构造函数
+        cosyvoice = model_loader(args.model_dir, 
+                                 fp16=args.fp16, 
+                                 load_jit=args.load_jit)
+        print(f"Successfully loaded {model_loader.__name__} with fp16={args.fp16}, load_jit={args.load_jit}")
+    except Exception as e:
+        print(f"Failed to load model: {e}")
+        raise TypeError('no valid model_type!')
 
     sft_spk = cosyvoice.list_available_spks()
     if len(sft_spk) == 0:
