@@ -47,13 +47,13 @@ def setup_environment():
     matcha_tts_path = root_dir / 'third_party' / 'Matcha-TTS'
     if str(matcha_tts_path) not in sys.path:
         sys.path.append(str(matcha_tts_path))
-    
+
     if not shutil.which("ffmpeg"):
         print("ffmpeg not found in PATH. Please ensure it is installed and accessible.")
         # Simple check for homebrew path on macOS
         if sys.platform == 'darwin' and (Path("/opt/homebrew/bin") / "ffmpeg").exists():
              os.environ["PATH"] = "/opt/homebrew/bin" + os.pathsep + os.environ["PATH"]
-    
+
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg could not be found. Please install it and add it to your system's PATH.")
     print(f"ffmpeg found at: {shutil.which('ffmpeg')}")
@@ -88,9 +88,9 @@ def load_model(model_type: str, args):
 
     print(f"Loading model: {model_type}...")
     if model_type == 'sft':
-        sft_model = CosyVoice(str(local_dir), load_jit=True, fp16=True)
+        sft_model = CosyVoice(str(local_dir), load_jit=True, fp16=False)
     elif model_type == 'tts':
-        tts_model = CosyVoice2(str(local_dir), load_jit=True, fp16=True)
+        tts_model = CosyVoice2(str(local_dir), load_jit=True, fp16=False)
     print(f"Model {model_type} loaded successfully.")
 
 def postprocess(speech, sample_rate, top_db=60, hop_length=220, win_length=440):
@@ -125,7 +125,7 @@ def get_params(req, args):
     }
     if params['lang'] == 'ja': params['lang'] = 'jp'
     elif params['lang'].startswith('zh'): params['lang'] = 'zh'
-    
+
     if req.args.get('encode', '') == 'base64' or req.form.get('encode', '') == 'base64':
         if params["reference_audio"]:
             tmp_name = f'{time.time()}-clone-{len(params["reference_audio"]) }.wav'
@@ -136,7 +136,7 @@ def get_params(req, args):
 
 def batch(tts_type, outname, params, args):
     from cosyvoice.utils.file_utils import load_wav
-    
+
     output_dir = Path(args.output_dir)
     reference_dir = Path(args.refer_audio_dir)
 
@@ -150,7 +150,7 @@ def batch(tts_type, outname, params, args):
         ref_audio_path_str = params['reference_audio']
         if not ref_audio_path_str:
             raise Exception('参考音频未传入。')
-        
+
         # FIX: Clearer variable names to avoid confusion
         user_provided_path = Path(ref_audio_path_str)
         full_ref_path = user_provided_path
@@ -168,12 +168,12 @@ def batch(tts_type, outname, params, args):
             )
         except subprocess.CalledProcessError as e:
             raise Exception(f'处理参考音频失败: {e.stderr}')
-        
+
         prompt_speech_16k = postprocess(load_wav(str(processed_ref_audio), 16000), sample_rate=16000)
 
     text = params['text']
     audio_list = []
-    
+
     model = sft_model if tts_type == 'tts' else tts_model
     if tts_type == 'tts':
         inference_stream = model.inference_sft(text, params['role'], stream=False, speed=params['speed'])
@@ -181,7 +181,7 @@ def batch(tts_type, outname, params, args):
         inference_stream = model.inference_zero_shot(text, params.get('reference_text'), prompt_speech_16k, stream=False, speed=params['speed'])
     else: # clone_mul
         inference_stream = model.inference_cross_lingual(text, prompt_speech_16k, stream=False, speed=params['speed'])
-            
+
     for i, j in enumerate(inference_stream):
         audio_list.append(j['tts_speech'])
 
@@ -190,10 +190,12 @@ def batch(tts_type, outname, params, args):
 
     audio_data = torch.cat(audio_list, dim=1)
     sample_rate = model.sample_rate
-    
+
     output_path = output_dir / outname
-    torchaudio.save(str(output_path), audio_data, sample_rate, format="wav")
-    
+
+    # Use torchaudio's save function with soundfile backend to avoid deprecation warning
+    torchaudio.save(str(output_path), audio_data, sample_rate, format="wav", backend='soundfile')
+
     print(f"音频文件生成成功：{output_path}")
     return str(output_path)
 
@@ -207,12 +209,12 @@ def tts():
             return make_response(jsonify({"code": 1, "msg": '缺少待合成的文本'}), 400)
         outname = f"tts-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
         outfile = batch(tts_type='tts', outname=outname, params=params, args=app.config['args'])
-        return send_file(outfile, mimetype='audio/wav')
+        return send_file(outfile, mimetype='audio/x-wav')
     except Exception as e:
         app.logger.error(f"TTS Error: {e}", exc_info=True)
         return make_response(jsonify({"code": 2, "msg": str(e)}), 500)
 
-@app.route('/clone_mul', methods=['GET', 'POST']) 
+@app.route('/clone_mul', methods=['GET', 'POST'])
 @app.route('/clone', methods=['GET', 'POST'])
 def clone():
     try:
@@ -221,7 +223,7 @@ def clone():
             return make_response(jsonify({"code": 6, "msg": '缺少待合成的文本'}), 400)
         outname = f"clone-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
         outfile = batch(tts_type='clone_mul', outname=outname, params=params, args=app.config['args'])
-        return send_file(outfile, mimetype='audio/wav')
+        return send_file(outfile, mimetype='audio/x-wav')
     except Exception as e:
         app.logger.error(f"Clone Error: {e}", exc_info=True)
         return make_response(jsonify({"code": 8, "msg": str(e)}), 500)
@@ -236,7 +238,7 @@ def clone_eq():
             return make_response(jsonify({"code": 7, "msg": '同语言克隆必须传递引用文本'}), 400)
         outname = f"clone_eq-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
         outfile = batch(tts_type='clone_eq', outname=outname, params=params, args=app.config['args'])
-        return send_file(outfile, mimetype='audio/wav')
+        return send_file(outfile, mimetype='audio/x-wav')
     except Exception as e:
         app.logger.error(f"Clone EQ Error: {e}", exc_info=True)
         return make_response(jsonify({"code": 8, "msg": str(e)}), 500)
@@ -254,7 +256,7 @@ def audio_speech():
         'role': data.get('voice', '中文女'),
         'reference_audio': None
     }
-    
+
     api_name = 'tts'
     if params['role'] not in VOICE_LIST:
         api_name = 'clone_mul'
@@ -263,7 +265,7 @@ def audio_speech():
     filename = f'openai-{len(params["text"])}-{time.time()}-{random.randint(1000,99999)}.wav'
     try:
         outfile = batch(tts_type=api_name, outname=filename, params=params, args=app.config['args'])
-        return send_file(outfile, mimetype='audio/wav')
+        return send_file(outfile, mimetype='audio/x-wav')
     except Exception as e:
         app.logger.error(f"OpenAI API Error: {e}", exc_info=True)
         return jsonify({"error": {"message": str(e), "type": e.__class__.__name__}}), 500
@@ -281,7 +283,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     app.config['args'] = args
-    
+
     output_dir = Path(args.output_dir)
     logs_dir = output_dir / 'logs'
     output_dir.mkdir(parents=True, exist_ok=True)

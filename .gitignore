@@ -44,6 +44,7 @@ exp
 data
 raw_wav
 tensorboard
+setup.cfg
 **/*build*
 sublime-workspaci
 # Clangd files
