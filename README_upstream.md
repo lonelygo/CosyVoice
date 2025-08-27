@@ -15,19 +15,11 @@
 - **Enhanced Prosody and Sound Quality**: Improved alignment of synthesized audio, raising MOS evaluation scores from 5.4 to 5.53.
 - **Emotional and Dialectal Flexibility**: Now supports more granular emotional controls and accent adjustments.
 
-## 对于使用 Apple Silicon M 系列芯片的 macOS 用户
-
-本`fork`已经在`M4 MacBook Pro`上进行了测试，并且启用了`torch`的`mps`后端，以便获得更优的性能。
-
-同时提供了`macOS`下的`Dockerfile`可以构建镜像。但是，并不建议这样使用，因为目前`macOS`下`Docker`并不支持`GPU直通`模式，所以，如果你用`Docker`运行，就只能跑在`CPU`上，失去了`mps`后端的加速优势。
-
-基本的安装与使用，与上游[CosyVoice](https://github.com/FunAudioLLM/CosyVoice)相同，使用方法与主要安装步骤，请参考原项目的[README.md](README_upstream.md)。
-
 ## Roadmap
 
 - [x] 2025/08
 
-    - [x] Thanks to the contribution from NVIDIA Yuekai Zhang, add triton trtllm runtime support and cosyvoice2 grpo training support
+    - [x] Thanks to the contribution from NVIDIA Yuekai Zhang, add triton trtllm runtime support
 
 - [x] 2025/07
 
@@ -65,7 +57,7 @@
 - Clone the repo
 
     ``` sh
-    git clone --recursive https://github.com/lonelygo/CosyVoice
+    git clone --recursive https://github.com/FunAudioLLM/CosyVoice
     # If you failed to clone the submodule due to network failures, please run the following command until success
     cd CosyVoice
     git submodule update --init --recursive
@@ -73,86 +65,11 @@
 
 - Create environment and install dependencies:
 
-### For macOS users:
-
-- 安装`Homebrew`，如果你还没有安装的话。可以参考[Homebrew官网](https://brew.sh/)。
-- 使用`Homebrew`安装关键依赖:`ffmpeg`:
-
-    ```bash
-    brew install ffmpeg
+    ``` sh
+    conda create -n cosyvoice python=3.10
+    conda activate cosyvoice
+    pip install -r requirements.txt
     ```
-
-    使用你喜欢的任何虚拟环境管理工具创建虚拟环境，比如使用`[uv](https://github.com/astral-sh/uv)`:
-
-    ``` bash
-    brew install uv
-    # 先进入项目目录
-    cd CosyVoice
-    uv venv --python 3.10.0
-    source .venv/bin/activate
-    uv pip install -r requirements-mac.txt
-    ```
-
-### For other systems:
-
-Please refer to the [original README file](README_upstream.md).
-
-### 如果你确实有使用`Docker`的需求：
-
-    ```bash
-    cd runtime/python
-    docker build -f Dockerfile.macOS -t cosyvoice:v1.0 .
-    ```
-
-启动命令，与原项目一致。
-
-## RESTful API
-
-[`cosyvoice-api`](https://github.com/jianchang512/cosyvoice-api)项目提供了一个`RESTful API`，可以通过`HTTP`请求来合成语音。
-
-为了方便使用，本`fork`将其也集成了进来，并做了一点点代码重构和优化，具体的使用可以参考[`cosyvoice-api`](https://github.com/jianchang512/cosyvoice-api)项目的文档。
-
-使用非常简单：
-
-```bash
-python rest-api.py
-```
-
-增加了一些命令行参数，可以通过`--help`查看，比如：下载目录、模型目录、参考音频目录等。
-
-`api`后端服务起来后，你就可以在第三方语音合成的应用中使用`CoSyVoice`的语音合成服务了。
-
-## 特别说明
-
-### `jit`开启
-
-由于原项目仅在`cuda`后端下才开启`jit`,对于`mps`后端来说，打开`jit`也会有一丢丢的性能提升，所以对于`api`的使用默认开启了`jit`。
-
-如果，你确实不想开启`jit`，可以修改`rest-api.py`中的相关代码:
-
-```python
-# 90~93行：
-    if model_type == 'sft':
-        sft_model = CosyVoice(str(local_dir), load_jit=False, fp16=False)
-    elif model_type == 'tts':
-        tts_model = CosyVoice2(str(local_dir), load_jit=False, fp16=False)
-```
-
-对于原项目的`webui`的使用，默认不开启`jit`,如果你要开启`jit`，可以增加启动参数：
-
-```bash
-python webui.py --load_jit
-```
-
-### 其他提示
-
-`ttsfrd`在`macOS`下无法正常安装，所以原始项目的安装中有关这部分的安装以及模型权重下载部分可以忽略，不要陷入无意义的安装包错处理。
-
-`权重`下载方法与上游相同，参考[README_upstream.md](README_upstream.md)。
-
-## Advanced Usage
-
-For advanced users, we have provided training and inference scripts in `examples/libritts/cosyvoice/run.sh`.
 
 #### Using vLLM for deployment
 
@@ -161,7 +78,7 @@ Notice that `vllm==v0.9.0` has a lot of specific requirements, for example `torc
 ``` sh
 conda create -n cosyvoice_vllm --clone cosyvoice
 conda activate cosyvoice_vllm
-pip install vllm==v0.9.0 transformers==4.51.3 -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com
+pip install vllm==v0.9.0 -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com
 python vllm_example.py
 ```
 
@@ -180,10 +97,14 @@ You can use our web demo page to get familiar with CosyVoice quickly.
 
 Please see the demo website for details.
 
-``` python
+```python
 # change iic/CosyVoice-300M-SFT for sft inference, or iic/CosyVoice-300M-Instruct for instruct inference
 python3 webui.py --port 50000 --model_dir pretrained_models/CosyVoice-300M
 ```
+
+#### Advanced Usage
+
+For advanced users, we have provided training and inference scripts in `examples/libritts/cosyvoice/run.sh`.
 
 #### Build for deployment
 
@@ -202,21 +123,9 @@ docker run -d --runtime=nvidia -p 50000:50000 cosyvoice:v1.0 /bin/bash -c "cd /o
 cd fastapi && python3 client.py --port 50000 --mode <sft|zero_shot|cross_lingual|instruct>
 ```
 
-#### Using Nvidia TensorRT-LLM for deployment
-
-Using TensorRT-LLM to accelerate cosyvoice2 llm could give 4x acceleration comparing with huggingface transformers implementation.
-To quick start:
-
-``` sh
-cd runtime/triton_trtllm
-docker compose up -d
-```
-For more details, you could check [here](https://github.com/FunAudioLLM/CosyVoice/tree/main/runtime/triton_trtllm)
-
 ## Discussion & Communication
 
 You can directly discuss on [Github Issues](https://github.com/FunAudioLLM/CosyVoice/issues).
-
 
 You can also scan the QR code to join our official Dingding chat group.
 
