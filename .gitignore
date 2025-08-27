@@ -3,18 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Visual Studio Code files
-.vscode
-.vs
-
-# PyCharm files
-.idea
-
-# Eclipse Project settings
+# IDE and editor files
+.vscode/
+.vs/
+.idea/
 *.*project
-.settings
-
-# Sublime Text settings
+.settings/
 *.sublime-workspace
 *.sublime-project
 
@@ -26,39 +20,41 @@ __pycache__/
 *~
 
 # IPython notebook checkpoints
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
-# macOS dir files
+# macOS files
 .DS_Store
-<<<<<<< HEAD
-err.txt
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+*.tar
+
+# Log and temporary files
 logs/
 tmp/
-||||||| parent of 7114745 (macos中可以使用mps后端加速，正常运行了)
-
-=======
-logs
-pretrained_models
->>>>>>> 7114745 (macos中可以使用mps后端加速，正常运行了)
-exp
-data
-raw_wav
-tensorboard
-setup.cfg
-**/*build*
-sublime-workspaci
-# Clangd files
-.cache
-compile_commands.json
-
-# train/inference files
 err.txt
-tmp/*
+.cache/
+
+# Data and models
+data/
+raw_wav/
+pretrained_models/
+exp/
+tensorboard/
+*.pt
+
+# Generated files
+compile_commands.json
+*_pb2_grpc.py
+*_pb2.py
+
+# Audio files
 *.wav
 *.m4a
 *.aac
-*.pt
-pretrained_models/*
-*_pb2_grpc.py
-*_pb2.py
-*.tar
+
+# Other
+setup.cfg
+asset/prompt.txt
