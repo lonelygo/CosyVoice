@@ -76,19 +76,8 @@ class CosyVoiceFrontEnd:
                 'failed to initialize ttsfrd resource'
             self.frd.set_lang_type('pinyinvg')
         else:
-            # 直接使用已下载的模型文件
-            wetext_dir = os.path.expanduser("~/.cache/modelscope/hub/pengzhendong/wetext")
-            self.zh_tn_model = ZhNormalizer(
-                lang="zh",
-                tagger_path=f"{wetext_dir}/zh/tn/tagger.fst",
-                verbalizer_path=f"{wetext_dir}/zh/tn/verbalizer.fst",
-                remove_erhua=False
-            )
-            self.en_tn_model = EnNormalizer(
-                lang="en",
-                tagger_path=f"{wetext_dir}/en/tn/tagger.fst",
-                verbalizer_path=f"{wetext_dir}/en/tn/verbalizer.fst"
-            )
+            self.zh_tn_model = ZhNormalizer(remove_erhua=False)
+            self.en_tn_model = EnNormalizer()
             self.inflect_parser = inflect.engine()
 
     def _extract_text_token(self, text):
