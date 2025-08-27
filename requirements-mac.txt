@@ -1,8 +1,8 @@
 
 conformer==0.3.2
-diffusers==0.30.2
-fastapi==0.115.6
-fastapi-cli==0.0.4
+diffusers
+fastapi
+fastapi-cli
 gdown==5.1.0
 gradio>=3.43.2
 grpcio==1.57.0
@@ -34,3 +34,4 @@ wget==3.2
 flask
 waitress
 Matcha-TTS
+numpy<2

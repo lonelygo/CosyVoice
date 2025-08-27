@@ -29,17 +29,12 @@ __pycache__/
 .ipynb_checkpoints
 
 # macOS dir files
-.DS_Store
-<<<<<<< HEAD
-err.txt
 logs
 tmp/
-||||||| a976519
 
 =======
 logs
 pretrained_models
->>>>>>> feat/mac_apple_silicon
 exp
 data
 raw_wav
@@ -52,6 +47,7 @@ sublime-workspaci
 compile_commands.json
 
 # train/inference files
+asset/prompt.txt
 err.txt
 tmp/*
 *.wav

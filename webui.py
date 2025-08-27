@@ -167,8 +167,7 @@ def main():
 
         seed_button.click(generate_seed, inputs=[], outputs=seed)
         generate_button.click(generate_audio,
-                              inputs=[tts_text, mode_checkbox_group, sft_dropdown, prompt_text, prompt_wav_upload, prompt_wav_record, instruct_text,
-                                      seed, stream, speed],
+                              inputs=[tts_text, mode_checkbox_group, sft_dropdown, prompt_text, prompt_wav_upload, prompt_wav_record, instruct_text, seed, stream, speed],
                               outputs=[audio_output])
         mode_checkbox_group.change(fn=change_instruction, inputs=[mode_checkbox_group], outputs=[instruction_text])
     demo.queue(max_size=4, default_concurrency_limit=2)
@@ -185,21 +184,21 @@ if __name__ == '__main__':
                         default='pretrained_models/CosyVoice2-0.5B',
                         help='local path or modelscope repo id')
     # 添加针对M芯片优化的启动参数
-    parser.add_argument('--fp16', 
-                        action='store_true', 
+    parser.add_argument('--fp16',
+                        action='store_true',
                         help='Enable fp16 inference for Apple Silicon')
-    parser.add_argument('--load_jit', 
+    parser.add_argument('--load_jit',
                         action='store_true',
                         help='Load JIT-compiled model')
     args = parser.parse_args()
 
     # 动态选择模型加载器
     model_loader = CosyVoice2 if 'CosyVoice2' in args.model_dir else CosyVoice
-    
+
     try:
         # 将命令行参数传递给模型构造函数
-        cosyvoice = model_loader(args.model_dir, 
-                                 fp16=args.fp16, 
+        cosyvoice = model_loader(args.model_dir,
+                                 fp16=args.fp16,
                                  load_jit=args.load_jit)
         print(f"Successfully loaded {model_loader.__name__} with fp16={args.fp16}, load_jit={args.load_jit}")
     except Exception as e:
