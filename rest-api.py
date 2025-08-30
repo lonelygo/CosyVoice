@@ -123,7 +123,7 @@ def get_params(req, args):
         "role": req.args.get("role", "中文女").strip() or req.form.get("role", "中文女"),
         "reference_audio": req.args.get("reference_audio") or req.form.get("reference_audio"),
         "reference_text": req.args.get("reference_text", "").strip() or req.form.get("reference_text", ""),
-        "speed": float(req.args.get("speed", 1.0) or req.form.get("speed", 1.0)),
+        "speed": float(req.args.get("speed") or req.form.get("speed") or 1.0),
         "seed": int(req.args.get("seed") or req.form.get("seed") or -1)
     }
     if params['lang'] == 'ja': params['lang'] = 'jp'
