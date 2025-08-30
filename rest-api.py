@@ -8,6 +8,8 @@ import subprocess
 import datetime
 import base64
 import librosa
+import random
+from cosyvoice.utils.common import set_all_random_seed
 
 import torch
 import torchaudio
@@ -88,9 +90,9 @@ def load_model(model_type: str, args):
 
     print(f"Loading model: {model_type}...")
     if model_type == 'sft':
-        sft_model = CosyVoice(str(local_dir), load_jit=True, fp16=False)
+        sft_model = CosyVoice(str(local_dir), load_jit=False, fp16=False)
     elif model_type == 'tts':
-        tts_model = CosyVoice2(str(local_dir), load_jit=True, fp16=False)
+        tts_model = CosyVoice2(str(local_dir), load_jit=False, fp16=False)
     print(f"Model {model_type} loaded successfully.")
 
 def postprocess(speech, sample_rate, top_db=60, hop_length=220, win_length=440):
@@ -121,14 +123,15 @@ def get_params(req, args):
         "role": req.args.get("role", "中文女").strip() or req.form.get("role", "中文女"),
         "reference_audio": req.args.get("reference_audio") or req.form.get("reference_audio"),
         "reference_text": req.args.get("reference_text", "").strip() or req.form.get("reference_text", ""),
-        "speed": float(req.args.get("speed", 1.0) or req.form.get("speed", 1.0))
+        "speed": float(req.args.get("speed", 1.0) or req.form.get("speed", 1.0)),
+        "seed": int(req.args.get("seed") or req.form.get("seed") or -1)
     }
     if params['lang'] == 'ja': params['lang'] = 'jp'
     elif params['lang'].startswith('zh'): params['lang'] = 'zh'
 
     if req.args.get('encode', '') == 'base64' or req.form.get('encode', '') == 'base64':
         if params["reference_audio"]:
-            tmp_name = f'{time.time()}-clone-{len(params["reference_audio"]) }.wav'
+            tmp_name = f'{time.time()}-clone-{len(params["reference_audio"])}.wav'
             output_path = output_dir / tmp_name
             base64_to_wav(params['reference_audio'], output_path)
             params['reference_audio'] = str(output_path)
@@ -137,6 +140,19 @@ def get_params(req, args):
 def batch(tts_type, outname, params, args):
     from cosyvoice.utils.file_utils import load_wav
 
+    # Seed priority: API param > command-line arg > random
+    seed = args.seed  # Start with global seed as a fallback
+    api_seed = params.get('seed', -1)
+    if api_seed != -1:
+        seed = api_seed  # API-level seed takes precedence
+
+    # If no seed was provided by API or command line, generate a random one
+    if seed == -1:
+        seed = random.randint(1, 100000000)
+
+    print(f"Using seed: {seed}")
+    set_all_random_seed(seed)
+
     output_dir = Path(args.output_dir)
     reference_dir = Path(args.refer_audio_dir)
 
@@ -144,6 +160,8 @@ def batch(tts_type, outname, params, args):
         load_model('sft', args)
     else:
         load_model('tts', args)
+
+    model = sft_model if tts_type == 'tts' else tts_model
 
     prompt_speech_16k = None
     if tts_type != 'tts':
@@ -160,26 +178,19 @@ def batch(tts_type, outname, params, args):
         if not full_ref_path.exists():
             raise Exception(f'参考音频不存在: {full_ref_path}')
 
-        processed_ref_audio = output_dir / f"refaudio-{int(time.time())}.wav"
-        try:
-            subprocess.run(
-                ["ffmpeg", "-hide_banner", "-ignore_unknown", "-y", "-i", str(full_ref_path), "-ar", "16000", str(processed_ref_audio)],
-                check=True, text=True, capture_output=True
-            )
-        except subprocess.CalledProcessError as e:
-            raise Exception(f'处理参考音频失败: {e.stderr}')
-
-        prompt_speech_16k = postprocess(load_wav(str(processed_ref_audio), 16000), sample_rate=16000)
+        # Align with webui.py by removing the explicit ffmpeg call.
+        # The load_wav function is expected to handle resampling.
+        # Also, use model.sample_rate for postprocessing padding to match webui.py.
+        prompt_speech_16k = postprocess(load_wav(str(full_ref_path), 16000), sample_rate=model.sample_rate)
 
     text = params['text']
     audio_list = []
 
-    model = sft_model if tts_type == 'tts' else tts_model
     if tts_type == 'tts':
         inference_stream = model.inference_sft(text, params['role'], stream=False, speed=params['speed'])
     elif tts_type == 'clone_eq' and params.get('reference_text'):
         inference_stream = model.inference_zero_shot(text, params.get('reference_text'), prompt_speech_16k, stream=False, speed=params['speed'])
-    else: # clone_mul
+    else:  # clone_mul
         inference_stream = model.inference_cross_lingual(text, prompt_speech_16k, stream=False, speed=params['speed'])
 
     for i, j in enumerate(inference_stream):
@@ -262,7 +273,7 @@ def audio_speech():
         api_name = 'clone_mul'
         params['reference_audio'] = params['role']
 
-    filename = f'openai-{len(params["text"])}-{time.time()}-{random.randint(1000,99999)}.wav'
+    filename = f'openai-{len(params["text"] )}-{time.time()}-{random.randint(1000,99999)}.wav'
     try:
         outfile = batch(tts_type=api_name, outname=filename, params=params, args=app.config['args'])
         return send_file(outfile, mimetype='audio/x-wav')
@@ -278,6 +289,7 @@ if __name__ == '__main__':
     parser.add_argument('--models-dir', type=str, default='./pretrained_models', help='Directory to store and load models from.')
     parser.add_argument('--output-dir', type=str, default='./tmp', help='Directory to save generated audio files.')
     parser.add_argument('--refer-audio-dir', type=str, default='.', dest='refer_audio_dir', help='Base directory for reference audio files.')
+    parser.add_argument('--seed', type=int, default=-1, help='Global random seed. -1 for random. Overridden by seed in API call.')
     parser.add_argument('--preload-models', nargs='*', choices=['sft', 'tts'], default=[], help='Space-separated list of models to preload at startup (e.g., sft tts).')
     parser.add_argument('--disable-download', action='store_true', help='Disable automatic model downloading.')
     args = parser.parse_args()
